@@ -1,0 +1,16 @@
+---
+mysql_packages_debian:
+  - mariadb-server
+  - git
+  - python-pip-whl
+  - gcc
+  - python3-mysqldb
+
+mysql_packages_centos:
+  - mariadb-server
+  - git
+  - epel-release
+  - python-devel
+  - mysql-devel
+  - gcc
+  - MySQL-python

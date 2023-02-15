@@ -1,0 +1,167 @@
+---
+# - name: upgrade all packages debian
+#   apt:
+#     name: '*'
+#     state: latest
+#   when: ansible_distribution == "Debian"
+
+# - name: upgrade all packages centos
+#   yum:
+#     name: '*'
+#     state: latest
+#   when: ansible_distribution == "CentOS"
+
+- name: Ensure a list of packages installed debian
+  apt:
+    state: present
+    name: "{{ mysql_packages_debian }}"
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Ensure a list of packages installed centos
+  yum:
+    state: present
+    name: "{{ mysql_packages_centos }}"
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Enable and start service mariadb
+  systemd:
+    name: mariadb
+    enabled: true
+    state: started
+
+- name: Check if mysql has been configured or not 
+  stat:
+    path: /etc/mysql/conf.d/hardening.cnf
+  register: mysql_configured
+
+- name: Initialize MySQL
+  block:
+    - name: Include vault
+      include_vars: group_vars/vault.yml
+      tags: default_vault
+
+    - name: Change root user password on first run
+      mysql_user:
+        name: root
+        password: "{{ mysql_root_password }}"
+        host_all: true
+     
+    - name: Delete anonymous MySQL server user
+      mysql_user:
+        login_user: root
+        login_password: "{{ vault_mysql_root_password }}"
+        user: ""
+        state: "absent"
+        host_all: true
+      no_log: true
+
+    - name: Remove the MySQL test database
+      mysql_db:
+        login_user: root
+        login_password: "{{ vault_mysql_root_password }}"
+        db: test
+        state: absent
+      no_log: true
+
+    - name: Protect my.cnf debian
+      file:
+        path: /etc/mysql/my.cnf
+        mode: '0640'
+        owner: root
+        group: mysql
+        follow: true
+        state: file
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+    - name: Protect my.cnf centos
+      file:
+        path: /etc/my.cnf
+        mode: '0640'
+        owner: root
+        group: mysql
+        follow: true
+        state: file
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+    - name: Ensure permissions on mysql-datadir are correct
+      file:
+        path: /var/lib/mysql
+        state: directory
+        owner: mysql
+        group: mysql
+        mode: '0750'
+
+    - name: Ensure permissions on mysql-logfile are correct
+      file:
+        path: /var/log/mysql/error.log
+        state: file
+        owner: mysql
+        group: adm
+        mode: '0640'
+      register: result
+      failed_when:
+        - "result.msg is defined and 'is absent' not in result.msg"
+
+    - name: Check mysql configuration-directory exists and has right permissions 
+      file:
+        path: /etc/mysql/conf.d
+        state: directory
+        owner: mysql
+        group: adm
+        mode: '0750'
+
+    - name: apply hardening configuration
+      template:
+        src: 'hardening.cnf.j2'
+        dest: /etc/mysql/conf.d/hardening.cnf
+        owner: root
+        group: mysql
+        mode: '0640'
+  when: not mysql_configured.stat.exists
+  
+- name: Include vault
+  include_vars: group_vars/vault.yml
+  tags: default_vault
+
+- name: Clone application repository to /var/www/html/
+  git:
+    repo: https://github.com/kodekloudhub/learning-app-ecommerce.git
+    dest: /var/www/html/
+    force: true
+
+- name: Create a new database for application
+  mysql_db:
+    login_user: root
+    login_password: "{{ vault_mysql_root_password }}"
+    name: "{{ vault_mysql_db_name }}"
+    state: present
+
+- name: Create a new user in database
+  mysql_user:
+    login_user: root
+    login_password: "{{ vault_mysql_root_password }}"
+    name: "{{ vault_mysql_db_user }}"
+    host: localhost
+    password: "{{ vault_mysql_ecomuser_password }}"
+    priv: '*.*:ALL'
+    state: present
+
+- name: Flush privileges after creating user
+  community.mysql.mysql_query:
+    login_db: "{{ vault_mysql_db_name }}"
+    login_user: root
+    login_password: "{{ vault_mysql_root_password }}"
+    query: FLUSH PRIVILEGES
+
+- name: Import db-load-script.sql
+  mysql_db:
+    login_user: root
+    login_password: "{{ vault_mysql_root_password }}"
+    state: import
+    name: "{{ vault_mysql_db_name }}"
+    target: /var/www/html/assets/db-load-script.sql
+
+- name: restart database after whole configuration
+  systemd:
+    name: mariadb
+    state: restarted

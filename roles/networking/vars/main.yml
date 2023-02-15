@@ -1,0 +1,8 @@
+---
+# vars file for networking
+networking_packages_debian:
+  - iptables-persistent
+  
+networking_packages_centos:
+  - iptables-services
+  - iptables-utils
