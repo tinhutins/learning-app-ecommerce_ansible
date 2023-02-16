@@ -102,21 +102,42 @@
       failed_when:
         - "result.msg is defined and 'is absent' not in result.msg"
 
-    - name: Check mysql configuration-directory exists and has right permissions 
+    - name: Check mysql configuration-directory exists and has right permissions debian
       file:
         path: /etc/mysql/conf.d
         state: directory
         owner: mysql
         group: adm
         mode: '0750'
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+    
+    - name: Check mysql configuration-directory exists and has right permissions centos
+      file:
+        path: /etc/my.cnf.d
+        state: directory
+        owner: mysql
+        group: adm
+        mode: '0750'
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      
 
-    - name: apply hardening configuration
+    - name: apply hardening configuration debian
       template:
         src: 'hardening.cnf.j2'
         dest: /etc/mysql/conf.d/hardening.cnf
         owner: root
         group: mysql
         mode: '0640'
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+   
+    - name: apply hardening configuration centos
+      template:
+        src: 'hardening.cnf.j2'
+        dest: /etc/my.cnf.d/hardening.cnf
+        owner: root
+        group: mysql
+        mode: '0640'
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
   when: not mysql_configured.stat.exists
   
 - name: Include vault
