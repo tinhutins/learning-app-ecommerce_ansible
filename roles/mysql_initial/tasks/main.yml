@@ -23,7 +23,7 @@
     name: "{{ mysql_packages_centos }}"
   when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
 
-- name: Enable and start service mariadb
+- name: Enable and start service mariadb on all servers
   systemd:
     name: mariadb
     enabled: true

@@ -1,13 +1,13 @@
 ---
 - name: Install php debian
   apt:
-    name: "{{ php_packages }}"
+    name: "{{ php_packages_debian }}"
     install_recommends: false
     state: present
   when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
 - name: Install php centos
   yum:
-    name: "{{ php_packages }}"
+    name: "{{ php_packages_centos }}"
     state: present
   when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'

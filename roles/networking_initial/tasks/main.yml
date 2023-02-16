@@ -35,17 +35,21 @@
     comment: Accept new HTTP connections
   #when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
-# - name: add rules for centos
-#   shell: |
-#     iptables -I INPUT -p tcp -m tcp --dport 80 -j ACCEPT
-#     iptables -I INPUT -p tcp -m tcp --dport 443 -j ACCEPT
-#   when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+- name: Add additional rule for centos on top of input chain
+  shell: |
+    iptables -I INPUT 1 -p tcp -m tcp --dport 80 -j ACCEPT
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
 
 - name: Save current state of the firewall in system file debian
   shell: |
     iptables-save > /etc/iptables/rules.v4
     ip6tables-save > /etc/iptables/rules.v6
   when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Save current state of the firewall in service centos
+  shell: |
+    service iptables save
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
 
 - name: Save current state of the firewall in system file centos
   shell: |

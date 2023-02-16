@@ -71,7 +71,7 @@
     state: absent
   when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
-- name: Edit Apache main conf Configuration
+- name: Edit Apache main conf configuration
   template:
     src: templates/etc/apache2/apache2.conf.j2
     dest: /etc/apache2/apache2.conf
@@ -102,7 +102,7 @@
     dest: /var/www/html/checkdb.php
     mode: '0644'
 
-- name: Change database connection in index.php
+- name: Change database connection in index.php to localhost because it runs on same host
   replace:
     path: /var/www/html/index.php
     regexp: '172.20.1.101'
