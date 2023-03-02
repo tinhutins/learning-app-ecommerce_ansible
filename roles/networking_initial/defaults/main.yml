@@ -1,4 +1,0 @@
----
-# defaults file for networking
-iptables_service: iptables
-iptables_config: '/etc/sysconfig/iptables'

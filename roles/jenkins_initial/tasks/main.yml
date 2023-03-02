@@ -1,0 +1,5 @@
+---
+- name: Add jenkins
+  import_tasks: add-jenkins.yml
+  tags: add_jenkins
+

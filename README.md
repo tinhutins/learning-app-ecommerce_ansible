@@ -1,10 +1,8 @@
 # learning-app-ecommerce_ansible
-this https://github.com/kodekloudhub/learning-app-ecommerce automated with ansible roles
-
-it can be installed on any distribution
+this https://github.com/kodekloudhub/example-voting-app automated with ansible roles and terraform 
 
 first update inventory.yml with your nodes
 
 vault password is in file : vault.pw
 
-then run play like this:  ansible-playbook -i inventory.yml playbook-lamp.yml  --ask-vault-pass -kK
+first run playbook for isntalling jenkins on node and all required software: ansible-playbook -i inventory.yml playbook.yml --tags add_jenkins --ask-vault-pass -kK

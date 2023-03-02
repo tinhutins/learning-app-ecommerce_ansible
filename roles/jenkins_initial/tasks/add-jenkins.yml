@@ -1,0 +1,137 @@
+---
+# - name: Ensure a list of packages installed debian
+#   apt:
+#     state: present
+#     name: "{{ packages }}"
+#   when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+# Jenkins running in docker with docker-compose
+- name: Create jenkins directory if it does not exist
+  ansible.builtin.file:
+    path: ~/jenkins
+    state: directory
+    mode: '0755'
+
+- name: Copy jenkins config files
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "~/jenkins/{{ item }}.yml"
+    owner: root
+    group: root
+    mode: u=rw,g=rw,o=r
+  loop:
+    - docker-compose
+
+- name: Copy Dockerfile
+  ansible.builtin.copy:
+    src: Dockerfile
+    dest: ~/jenkins/
+
+- name: Delete existing jenkins service if exist
+  community.docker.docker_compose:
+    project_src: ~/jenkins
+    state: absent
+
+- name: Create and start jenkins service
+  community.docker.docker_compose:
+    project_src: ~/jenkins
+  register: output
+
+- ansible.builtin.debug:
+    var: output
+
+- name: Restart  all services
+  community.docker.docker_compose:
+    project_src: ~/jenkins
+    build: no
+    services:
+      - jenkins
+    restarted: yes
+
+#set initial jenkins configuration admin user/password/token/url
+- name: Jenkins get initial admin password
+  community.docker.docker_container_exec:
+    container: jenkins
+    command: /bin/bash -c "cat /var/jenkins_home/secrets/initialAdminPassword"
+    chdir: /root
+  register: admin_auth_token
+
+- name: Unlock jenkins and add admin user
+  jenkins_script:
+    script: |
+      import jenkins.model.*
+      import hudson.security.*
+      def instance = Jenkins.getInstance()
+      def hudsonRealm = new HudsonPrivateSecurityRealm(false)
+      hudsonRealm.createAccount('${user_acc}', '${user_pwd}')
+      instance.setSecurityRealm(hudsonRealm)
+      def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
+      strategy.setAllowAnonymousRead(false)
+      instance.setAuthorizationStrategy(strategy)
+      instance.save()
+    
+    validate_certs: no
+    args:
+      user_acc: "{{ jenkins_user }}"
+      user_pwd: "{{ jenkins_password }}"
+    user: "{{ jenkins_user }}"
+    password: "{{ admin_auth_token.stdout }}"
+
+- name: Complete jenkins setup wizard
+  jenkins_script:
+    script: |
+      import static jenkins.model.Jenkins.instance as jenkins
+      import jenkins.install.InstallState
+      if (!jenkins.installState.isSetupComplete()) {
+        InstallState.INITIAL_SETUP_COMPLETED.initializeState()
+      }
+    
+    validate_certs: no
+    user: "{{ jenkins_user }}"
+    password: "{{ jenkins_password }}"
+
+- name: Jenkins install docker in container
+  community.docker.docker_container_exec:
+    container: jenkins
+    command: sudo curl https://get.docker.com/ > dockerinstall && chmod 777 dockerinstall && ./dockerinstall
+
+- name: Add security
+  shell: sudo chmod 666 /var/run/docker.sock
+
+- name: Jenkins install docker-compose in container
+  community.docker.docker_container_exec:
+    container: jenkins
+    command: sudo curl -SL https://github.com/docker/compose/releases/download/v2.16.0/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
+
+- name: Jenkins install docker-compose in container,kustomize add github key to known_host and remote url
+  community.docker.docker_container_exec:
+    container: jenkins
+    command: docker-compose -v
+    command: /bin/bash -c "{{ item }}"
+    with_items:
+      - docker-compose -v
+      - sudo curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+      - sudo install -o root -g root -m 0755 kustomize /usr/local/bin/kustomize
+      - ssh-keygen
+      - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+      - git remote set-url origin git@github.com:tinhutins/argocd-vote-deploy.git
+
+- name: Read SSH public key to authorize
+  community.docker.docker_container_exec:
+    container: jenkins
+    command: cat /root/id_rsa.pub
+  register: ssh_pub_key
+
+- name: Authorize key with GitHub
+  local_action:
+    module: github_key
+    name: Access Key for Jenkins
+    token: '{{ github_access_token }}'
+    pubkey: '{{ ssh_pub_key.stdout }}'
+
+
+- name: Host add kustomize
+  shell: |
+    sudo curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+    sudo install -o root -g root -m 0755 kustomize /usr/local/bin/kustomize
+
