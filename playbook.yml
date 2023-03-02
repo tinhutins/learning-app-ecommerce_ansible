@@ -1,7 +1,0 @@
----
-# tasks file for initial jenkins install
-- hosts: jenkins_master
-  become: true
-  gather_facts: true
-  roles:
-    - jenkins_initial

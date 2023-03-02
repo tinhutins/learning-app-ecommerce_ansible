@@ -1,4 +1,6 @@
-ubuntu-host ansible_host=192.168.43.144 ansible_user=tino
+centos-host ansible_host=192.168.43.128 ansible_user=root
+ubuntu-host ansible_host=192.168.43.134 ansible_user=tino
 
-[jenkins_master]
+[web_servers]
+centos-host
 ubuntu-host

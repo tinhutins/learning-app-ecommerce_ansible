@@ -1,0 +1,9 @@
+---
+sysadmin_email: tino.hutinski@gmail.com
+https: false
+cloudflare: false
+staging: true
+httpd_document_root: '/var/www/html'
+httpd_access_log: logs/access_log
+httpd_error_log: logs/error_log
+httpd_log_level: warn

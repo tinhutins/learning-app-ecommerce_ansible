@@ -1,0 +1,129 @@
+---
+- name: Install apache2 debian
+  apt:
+    name: apache2
+    install_recommends: false
+    state: present
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Install httpd centos 
+  yum:
+    name: httpd
+    state: present
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Enable service debian
+  systemd:
+    name: apache2
+    enabled: true
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Enable service centos
+  systemd:
+    name: httpd
+    enabled: true
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+# - name: Enable headers module apache2
+#   community.general.apache2_module:
+#     name: headers
+#     state: present
+#   when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Change permissions of apache2 folders
+  file:
+    path: /etc/apache2/{{ item }}
+    mode: '0700'
+  loop:
+    - conf-available
+    - conf-enabled
+    - mods-available
+    - mods-enabled
+    - sites-available
+    - sites-enabled
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Change permissions of httpd folders
+  file:
+    path: /etc/httpd/{{ item }}
+    mode: '0700'
+  loop:
+    - conf
+    - conf.d
+    - conf.modules.d
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Disabling SELinux state centos
+  selinux:
+    state: disabled
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Disable unnecessary configuration (serve-cgi-bin.conf) debian
+  file:
+    path: /etc/apache2/conf-enabled/serve-cgi-bin.conf
+    state: absent
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+
+- name: Disable default site configuration (000-default.conf) debian
+  file:
+    path: /etc/apache2/sites-enabled/000-default.conf
+    state: absent
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Edit Apache main conf configuration
+  template:
+    src: templates/etc/apache2/apache2.conf.j2
+    dest: /etc/apache2/apache2.conf
+    mode: '0600'
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Edit Apache security configuration
+  template:
+    src: templates/etc/apache2/conf-available/security.conf.j2
+    dest: /etc/apache2/conf-available/security.conf
+    mode: '0600'
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: Install main httpd configuration file
+  template:
+    src: templates/etc/httpd/conf/httpd.conf.j2
+    dest: /etc/httpd/conf/httpd.conf
+    owner: root
+    group: root
+    #setype: httpd_config_t
+    mode: '0644'
+  tags: httpd
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: copy db check
+  template:
+    src: templates/check-db.j2
+    dest: /var/www/html/checkdb.php
+    mode: '0644'
+
+- name: Change database connection in index.php to localhost because it runs on same host
+  replace:
+    path: /var/www/html/index.php
+    regexp: '172.20.1.101'
+    replace: '127.0.0.1'
+
+- name: restart apache2 debian
+  systemd:
+    name: apache2
+    state: restarted
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: restart httpd centos
+  systemd:
+    name: httpd
+    state: restarted
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Include https configurations
+  include_tasks: https.yml
+  when: https | bool
+
+- name: Include cloudflare configurations
+  include_tasks: cloudflare.yml
+  when: cloudflare | bool
